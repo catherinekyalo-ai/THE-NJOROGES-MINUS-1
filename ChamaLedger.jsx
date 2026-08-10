@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { PiggyBank, Landmark, Plus, X, Users } from "lucide-react";
 import { loadLedger, addMember as apiAddMember, deleteMember as apiDeleteMember, addEntry as apiAddEntry, deleteEntry as apiDeleteEntry } from "./lib/ledgerStore";
+import MonthlySummary from "./MonthlySummary";
 
 const fmt = (n) => {
   const sign = n < 0 ? "-" : "";
@@ -358,7 +359,9 @@ export default function ChamaLedger() {
         >
           <div className="hidden md:block" style={{ position: "absolute", left: 110, top: 0, bottom: 0, width: 1, background: C.rust, opacity: 0.35 }} />
 
-          <DashboardSummary
+          <MonthlySummary state={state} C={C} />
+
+              <DashboardSummary
                 members={state.members}
                 savingsBalance={savingsBalance}
                 loanOwed={loanOwed}
