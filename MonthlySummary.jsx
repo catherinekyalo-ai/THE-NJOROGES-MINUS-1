@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
-import { buildMonthlySummary, getAllLabels, exportMonthlyReportToExcel } from "./lib/monthlyReport";
+import { buildMonthlySummary, getAllLabels, exportMonthlyReportToExcel, detailRowsFor } from "./lib/monthlyReport";
 
 const fmt = (n) =>
   "KES " + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0 });
@@ -10,6 +10,11 @@ export default function MonthlySummary({ state, C }) {
 
   const summary = useMemo(
     () => buildMonthlySummary(state, scope === "all" ? null : scope),
+    [state, scope]
+  );
+
+  const detailRows = useMemo(
+    () => (scope === "all" ? [] : detailRowsFor(state, scope)),
     [state, scope]
   );
   const months = Object.keys(summary).sort().reverse();
@@ -79,6 +84,42 @@ export default function MonthlySummary({ state, C }) {
                       {summary[month][l] ? fmt(summary[month][l]) : "—"}
                     </td>
                   ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {scope !== "all" && detailRows.length > 0 && (
+        <div style={{ overflowX: "auto", marginTop: 20 }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: ".08em", color: C.textSoft, textTransform: "uppercase", marginBottom: 8 }}>
+            Transaction history
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, fontFamily: "'Inter', sans-serif" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: "6px 10px", borderBottom: `2px solid ${C.ink2}` }}>Date</th>
+                <th style={{ textAlign: "left", padding: "6px 10px", borderBottom: `2px solid ${C.ink2}` }}>Type</th>
+                <th style={{ textAlign: "right", padding: "6px 10px", borderBottom: `2px solid ${C.ink2}` }}>Amount</th>
+                <th style={{ textAlign: "left", padding: "6px 10px", borderBottom: `2px solid ${C.ink2}` }}>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...detailRows].reverse().map((r, i) => (
+                <tr key={i}>
+                  <td style={{ padding: "6px 10px", borderBottom: `1px solid ${C.paper2}`, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>
+                    {r.Date}
+                  </td>
+                  <td style={{ padding: "6px 10px", borderBottom: `1px solid ${C.paper2}`, whiteSpace: "nowrap" }}>
+                    {r.Type}
+                  </td>
+                  <td style={{ padding: "6px 10px", borderBottom: `1px solid ${C.paper2}`, textAlign: "right", whiteSpace: "nowrap" }}>
+                    {fmt(r.Amount)}
+                  </td>
+                  <td style={{ padding: "6px 10px", borderBottom: `1px solid ${C.paper2}`, color: C.textSoft }}>
+                    {r.Note}
+                  </td>
                 </tr>
               ))}
             </tbody>
