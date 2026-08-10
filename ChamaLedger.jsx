@@ -48,6 +48,84 @@ const C = {
   white: "#fffdf7",
 };
 
+
+function StatCard({ icon, label, value, color, C }) {
+  return (
+    <div style={{ background: C.white, border: `1px solid ${C.rule}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ width: 36, height: 36, borderRadius: 8, background: color + "22", display: "flex", alignItems: "center", justifyContent: "center", color }}>
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: C.textSoft, textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</div>
+        <div style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 18, color: C.text }}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardSummary({ members, savingsBalance, loanOwed, totalSavings, totalLoans, C, fmt }) {
+  const maxVal = Math.max(1, ...members.map((m) => Math.max(savingsBalance(m.id), loanOwed(m.id))));
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 20 }}>
+        <StatCard icon={<PiggyBank size={18} />} label="Total Savings" value={fmt(totalSavings)} color={C.sage} C={C} />
+        <StatCard icon={<Landmark size={18} />} label="Loans Outstanding" value={fmt(totalLoans)} color={C.rust} C={C} />
+        <StatCard icon={<Users size={18} />} label="Members" value={members.length} color={C.steel} C={C} />
+      </div>
+      {members.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+          <div style={{ background: C.white, border: `1px solid ${C.rule}`, borderRadius: 10, padding: "16px 18px" }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: ".08em", color: C.textSoft, textTransform: "uppercase", marginBottom: 12 }}>
+              Savings by member
+            </div>
+            {members.map((m) => {
+              const bal = savingsBalance(m.id);
+              const pct = Math.max(2, (bal / maxVal) * 100);
+              return (
+                <div key={m.id} style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'Inter', sans-serif", marginBottom: 3 }}>
+                    <span style={{ color: C.text }}>{m.name}</span>
+                    <span style={{ color: C.sage, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(bal)}</span>
+                  </div>
+                  <div style={{ height: 7, background: C.paper2, borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: pct + "%", background: C.sage, borderRadius: 4 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ background: C.white, border: `1px solid ${C.rule}`, borderRadius: 10, padding: "16px 18px" }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: ".08em", color: C.textSoft, textTransform: "uppercase", marginBottom: 12 }}>
+              Loans owed by member
+            </div>
+            {members.filter((m) => loanOwed(m.id) > 0).length === 0 ? (
+              <div style={{ fontSize: 12, color: C.textSoft, fontFamily: "'Inter', sans-serif" }}>No outstanding loans.</div>
+            ) : (
+              members.map((m) => {
+                const owed = loanOwed(m.id);
+                if (owed <= 0) return null;
+                const pct = Math.max(2, (owed / maxVal) * 100);
+                return (
+                  <div key={m.id} style={{ marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'Inter', sans-serif", marginBottom: 3 }}>
+                      <span style={{ color: C.text }}>{m.name}</span>
+                      <span style={{ color: C.rust, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(owed)}</span>
+                    </div>
+                    <div style={{ height: 7, background: C.paper2, borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: pct + "%", background: C.rust, borderRadius: 4 }} />
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ChamaLedger() {
   const [state, setState] = useState(null);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -280,7 +358,17 @@ export default function ChamaLedger() {
         >
           <div className="hidden md:block" style={{ position: "absolute", left: 110, top: 0, bottom: 0, width: 1, background: C.rust, opacity: 0.35 }} />
 
-          {member ? (
+          <DashboardSummary
+                members={state.members}
+                savingsBalance={savingsBalance}
+                loanOwed={loanOwed}
+                totalSavings={groupSavings()}
+                totalLoans={groupLoans()}
+                C={C}
+                fmt={fmt}
+              />
+
+              {member ? (
             <>
               <div style={{ marginBottom: 18 }}>
                 <h2 style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 26, margin: 0 }}>{member.name}</h2>
