@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { PiggyBank, Landmark, Plus, X, Users } from "lucide-react";
 import { loadLedger, addMember as apiAddMember, deleteMember as apiDeleteMember, addEntry as apiAddEntry, deleteEntry as apiDeleteEntry } from "./lib/ledgerStore";
 import MonthlySummary from "./MonthlySummary";
+import { getDoubleEntry } from "./lib/doubleEntry";
 
 const fmt = (n) => {
   const sign = n < 0 ? "-" : "";
@@ -219,6 +220,7 @@ export default function ChamaLedger() {
       return;
     }
     try {
+      const memberName = state.members.find((m) => m.id === selectedMember)?.name || "Member";
       await apiAddEntry(selectedMember, accountView, {
         date: form.date,
         type: form.type,
@@ -252,6 +254,144 @@ export default function ChamaLedger() {
     if (type === "interest") return C.gold2;
     return C.rust;
   };
+
+  if (accountView === "journal") {
+    const journalEntries = state.members
+      .flatMap((m) => [
+        ...(state.transactions[m.id]?.savings || []).map((t) => ({
+          ...t,
+          account: "savings",
+          memberName: m.name,
+        })),
+        ...(state.transactions[m.id]?.loans || []).map((t) => ({
+          ...t,
+          account: "loans",
+          memberName: m.name,
+        })),
+      ])
+      .sort((a, b) => {
+        const dateCompare = String(a.date).localeCompare(String(b.date));
+        if (dateCompare !== 0) return dateCompare;
+        return String(a.id).localeCompare(String(b.id));
+      });
+
+    return (
+      <div style={{ fontFamily: "'Inter', sans-serif", color: C.text, minHeight: 640 }}>
+        <div style={{ padding: "28px 30px" }}>
+          <div
+            style={{
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 10,
+              letterSpacing: ".1em",
+              textTransform: "uppercase",
+              color: C.textSoft,
+              marginBottom: 5,
+            }}
+          >
+            Double-entry journal
+          </div>
+
+          <h2
+            style={{
+              fontFamily: "'Roboto Slab', serif",
+              fontWeight: 700,
+              fontSize: 26,
+              margin: "0 0 6px",
+            }}
+          >
+            Group Transaction Journal
+          </h2>
+
+          <div style={{ fontSize: 13, color: C.textSoft, marginBottom: 20 }}>
+            Every Savings and Loans transaction recorded as a debit and credit.
+          </div>
+
+          <div
+            style={{
+              background: C.white,
+              borderRadius: 10,
+              padding: 18,
+              boxShadow: `0 1px 0 ${C.rule}`,
+              overflowX: "auto",
+            }}
+          >
+            {journalEntries.length === 0 ? (
+              <div
+                style={{
+                  padding: "45px 15px",
+                  textAlign: "center",
+                  color: C.textSoft,
+                }}
+              >
+                No journal entries yet. Add a Savings or Loans transaction first.
+              </div>
+            ) : (
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 13,
+                }}
+              >
+                <thead>
+                  <tr>
+                    {["Date", "Member", "Account", "Debit", "Credit", "Amount", "Note"].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          textAlign: "left",
+                          padding: "9px 10px",
+                          borderBottom: `2px solid ${C.ink2}`,
+                          fontFamily: "'IBM Plex Mono', monospace",
+                          fontSize: 10,
+                          textTransform: "uppercase",
+                          color: C.textSoft,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {journalEntries.map((t) => {
+                    const de = getDoubleEntry(t.account, t.type, t.memberName);
+
+                    return (
+                      <tr
+                        key={`${t.account}-${t.id}`}
+                        style={{ borderBottom: `1px solid ${C.rule}` }}
+                      >
+                        <td style={tdStyle}>{t.date}</td>
+                        <td style={tdStyle}>{t.memberName}</td>
+                        <td style={{ ...tdStyle, textTransform: "capitalize" }}>
+                          {t.account}
+                        </td>
+                        <td style={{ ...tdStyle, color: C.rust, fontWeight: 600 }}>
+                          {de.debit}
+                        </td>
+                        <td style={{ ...tdStyle, color: C.sage, fontWeight: 600 }}>
+                          {de.credit}
+                        </td>
+                        <td style={{ ...tdStyle, fontWeight: 600 }}>
+                          {fmt(Number(t.amount))}
+                        </td>
+                        <td style={tdStyle}>
+                          {t.note || de.note || "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", color: C.text, minHeight: 640 }}>
@@ -423,6 +563,7 @@ export default function ChamaLedger() {
                 >
                   <Landmark size={15} /> Loans
                 </button>
+            <button onClick={() => setAccountView("journal")}>Journal</button>
               </div>
 
               <SummaryChips accountView={accountView} txns={txns} />
@@ -600,6 +741,7 @@ export default function ChamaLedger() {
           )}
         </div>
       </div>
+
     </div>
   );
 }
@@ -649,6 +791,7 @@ function Field({ label, children }) {
         {label}
       </label>
       {children}
+
     </div>
   );
 }
