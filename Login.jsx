@@ -113,14 +113,14 @@ export default function Login() {
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#334155", marginBottom: 6 }}>
-              Gmail
+              Email address
             </label>
             <div style={{ position: "relative" }}>
               <Mail size={16} color="#94a3b8" style={{ position: "absolute", left: 12, top: 12 }} />
               <input
                 type="email"
                 required
-                placeholder="you@gmail.com"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 style={{
