@@ -258,16 +258,13 @@ export default function ChamaLedger() {
   if (accountView === "journal") {
     const journalEntries = state.members
       .flatMap((m) => [
-        ...(state.transactions[m.id]?.savings || []).map((t) => ({
-          ...t,
-          account: "savings",
-          memberName: m.name,
-        })),
-        ...(state.transactions[m.id]?.loans || []).map((t) => ({
-          ...t,
-          account: "loans",
-          memberName: m.name,
-        })),
+        ...(state.transactions[m.id]?.loans || [])
+          .filter((t) => t.type === "repayment" || t.type === "interest")
+          .map((t) => ({
+            ...t,
+            account: "loans",
+            memberName: m.name,
+          })),
       ])
       .sort((a, b) => {
         const dateCompare = String(a.date).localeCompare(String(b.date));
@@ -303,7 +300,7 @@ export default function ChamaLedger() {
           </h2>
 
           <div style={{ fontSize: 13, color: C.textSoft, marginBottom: 20 }}>
-            Every Savings and Loans transaction recorded as a debit and credit.
+            Loan repayments and interest charges, recorded as a debit and credit.
           </div>
 
           <div
