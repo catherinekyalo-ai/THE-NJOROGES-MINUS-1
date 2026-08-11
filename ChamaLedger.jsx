@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { PiggyBank, Landmark, Plus, X, Users, FileText } from "lucide-react";
 import { loadLedger, addMember as apiAddMember, deleteMember as apiDeleteMember, addEntry as apiAddEntry, deleteEntry as apiDeleteEntry } from "./lib/ledgerStore";
+import { loadExpenses, addExpense as apiAddExpense, deleteExpense as apiDeleteExpense } from "./lib/expensesStore";
 import MonthlySummary from "./MonthlySummary";
 import { getDoubleEntry } from "./lib/doubleEntry";
 
@@ -135,6 +136,8 @@ export default function ChamaLedger() {
   const [form, setForm] = useState({ date: "", type: "payment", amount: "", note: "" });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
+  const [expenses, setExpenses] = useState([]);
+  const [expenseForm, setExpenseForm] = useState({ date: "", category: "", amount: "", note: "" });
 
   useEffect(() => {
     const link = document.createElement("link");
@@ -150,11 +153,44 @@ export default function ChamaLedger() {
       const data = await loadLedger();
       setState(data);
       setSelectedMember((prev) => prev && data.members.some((m) => m.id === prev) ? prev : data.members[0]?.id || null);
+      const exp = await loadExpenses();
+      setExpenses(exp);
     } catch (e) {
       console.error(e);
       setErr("Couldn't load the ledger. Check your Supabase URL/key and that the schema has been run.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddExpense = async () => {
+    if (!expenseForm.date || !expenseForm.category.trim() || !expenseForm.amount || Number(expenseForm.amount) <= 0) {
+      window.alert("Please enter a valid date, category, and amount.");
+      return;
+    }
+    try {
+      await apiAddExpense({
+        date: expenseForm.date,
+        category: expenseForm.category.trim(),
+        amount: Number(expenseForm.amount),
+        note: expenseForm.note.trim(),
+      });
+      setExpenseForm({ date: "", category: "", amount: "", note: "" });
+      await refresh();
+    } catch (e) {
+      console.error(e);
+      window.alert("Couldn't add expense.");
+    }
+  };
+
+  const handleDeleteExpense = async (id) => {
+    if (!window.confirm("Delete this expense?")) return;
+    try {
+      await apiDeleteExpense(id);
+      await refresh();
+    } catch (e) {
+      console.error(e);
+      window.alert("Couldn't delete expense.");
     }
   };
 
@@ -332,7 +368,7 @@ export default function ChamaLedger() {
               >
                 <thead>
                   <tr>
-                    {["Date", "Member", "Account", "Debit", "Credit", "Amount", "Note"].map((h) => (
+                    {["Date", "Member", "Account", "Debit", "Debit Type", "Credit", "Credit Type", "Amount", "Note"].map((h) => (
                       <th
                         key={h}
                         style={{
@@ -369,8 +405,14 @@ export default function ChamaLedger() {
                         <td style={{ ...tdStyle, color: C.rust, fontWeight: 600 }}>
                           {de.debit}
                         </td>
+                        <td style={{ ...tdStyle, fontSize: 11, color: C.textSoft }}>
+                          {de.debitType}
+                        </td>
                         <td style={{ ...tdStyle, color: C.sage, fontWeight: 600 }}>
                           {de.credit}
+                        </td>
+                        <td style={{ ...tdStyle, fontSize: 11, color: C.textSoft }}>
+                          {de.creditType}
                         </td>
                         <td style={{ ...tdStyle, fontWeight: 600 }}>
                           {fmt(Number(t.amount))}
@@ -384,7 +426,7 @@ export default function ChamaLedger() {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={5} style={{ padding: "12px 10px", borderTop: `2px solid ${C.ink2}`, textAlign: "right", fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 13 }}>
+                    <td colSpan={7} style={{ padding: "12px 10px", borderTop: `2px solid ${C.ink2}`, textAlign: "right", fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 13 }}>
                       Total
                     </td>
                     <td style={{ padding: "12px 10px", borderTop: `2px solid ${C.ink2}`, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, fontSize: 13.5, color: C.ink2 }}>
@@ -395,6 +437,275 @@ export default function ChamaLedger() {
                 </tfoot>
               </table>
             )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (accountView === "expenses") {
+    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    return (
+      <div style={{ fontFamily: "'Inter', sans-serif", color: C.text, minHeight: 640 }}>
+        <div style={{ padding: "28px 30px" }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase", color: C.textSoft, marginBottom: 5 }}>
+            Group expenses
+          </div>
+          <h2 style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 26, margin: "0 0 6px" }}>
+            Expenses
+          </h2>
+          <div style={{ fontSize: 13, color: C.textSoft, marginBottom: 20 }}>
+            Group costs like stationery, admin fees, transport, etc.
+          </div>
+
+          <div style={{ background: C.white, borderRadius: 10, padding: 18, marginBottom: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+            <Field label="Date">
+              <input type="date" value={expenseForm.date} onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })} style={inputStyle()} />
+            </Field>
+            <Field label="Category">
+              <input type="text" placeholder="e.g. Stationery" value={expenseForm.category} onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })} style={inputStyle()} />
+            </Field>
+            <Field label="Amount (KES)">
+              <input type="number" min="0" value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} style={inputStyle()} />
+            </Field>
+            <Field label="Note">
+              <input type="text" placeholder="optional" value={expenseForm.note} onChange={(e) => setExpenseForm({ ...expenseForm, note: e.target.value })} style={inputStyle()} />
+            </Field>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <button
+                onClick={handleAddExpense}
+                style={{ width: "100%", padding: "9px 14px", background: C.ink, color: C.paper, border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+              >
+                Add expense
+              </button>
+            </div>
+          </div>
+
+          <div style={{ background: C.white, borderRadius: 10, padding: 18, boxShadow: `0 1px 0 ${C.rule}`, overflowX: "auto" }}>
+            {expenses.length === 0 ? (
+              <div style={{ padding: "45px 15px", textAlign: "center", color: C.textSoft }}>
+                No expenses recorded yet.
+              </div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    {["Date", "Category", "Note", "Amount", ""].map((h) => (
+                      <th key={h} style={{ textAlign: "left", padding: "9px 10px", borderBottom: `2px solid ${C.ink2}`, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, textTransform: "uppercase", color: C.textSoft, whiteSpace: "nowrap" }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map((e) => (
+                    <tr key={e.id} style={{ borderBottom: `1px solid ${C.rule}` }}>
+                      <td style={tdStyle}>{e.date}</td>
+                      <td style={tdStyle}>{e.category}</td>
+                      <td style={tdStyle}>{e.note || "—"}</td>
+                      <td style={{ ...tdStyle, fontWeight: 600, color: C.rust }}>{fmt(e.amount)}</td>
+                      <td style={tdStyle}>
+                        <button onClick={() => handleDeleteExpense(e.id)} style={{ background: "none", border: "none", color: C.rust, cursor: "pointer" }} title="Delete">
+                          <X size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={3} style={{ padding: "12px 10px", borderTop: `2px solid ${C.ink2}`, textAlign: "right", fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 13 }}>
+                      Total
+                    </td>
+                    <td style={{ padding: "12px 10px", borderTop: `2px solid ${C.ink2}`, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, fontSize: 13.5, color: C.rust }}>
+                      {fmt(totalExpenses)}
+                    </td>
+                    <td style={{ padding: "12px 10px", borderTop: `2px solid ${C.ink2}` }} />
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (accountView === "assets") {
+    let cashBank = 0;
+    state.members.forEach((m) => {
+      (state.transactions[m.id]?.savings || []).forEach((t) => {
+        if (t.type === "deduction") cashBank -= Number(t.amount);
+        else cashBank += Number(t.amount);
+      });
+      (state.transactions[m.id]?.loans || []).forEach((t) => {
+        if (t.type === "disbursed") cashBank -= Number(t.amount);
+        else if (t.type === "repayment") cashBank += Number(t.amount);
+      });
+    });
+    expenses.forEach((e) => {
+      cashBank -= Number(e.amount);
+    });
+
+    const loanAssets = state.members
+      .map((m) => ({ name: m.name, owed: loanOwed(m.id) }))
+      .filter((m) => m.owed > 0);
+
+    const totalLoanAssets = loanAssets.reduce((s, m) => s + m.owed, 0);
+    const totalAssets = cashBank + totalLoanAssets;
+
+    return (
+      <div style={{ fontFamily: "'Inter', sans-serif", color: C.text, minHeight: 640 }}>
+        <div style={{ padding: "28px 30px" }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase", color: C.textSoft, marginBottom: 5 }}>
+            What the group owns
+          </div>
+          <h2 style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 26, margin: "0 0 6px" }}>
+            Assets
+          </h2>
+          <div style={{ fontSize: 13, color: C.textSoft, marginBottom: 20 }}>
+            Cash on hand plus money owed to the group by members.
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
+            <div style={{ background: C.white, border: `1px solid ${C.rule}`, borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: C.textSoft, textTransform: "uppercase" }}>Cash/Bank</div>
+              <div style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 20, color: C.sage }}>{fmt(cashBank)}</div>
+            </div>
+            <div style={{ background: C.white, border: `1px solid ${C.rule}`, borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: C.textSoft, textTransform: "uppercase" }}>Loans Receivable</div>
+              <div style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 20, color: C.steel2 }}>{fmt(totalLoanAssets)}</div>
+            </div>
+            <div style={{ background: C.ink, borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: C.gold, textTransform: "uppercase" }}>Total Assets</div>
+              <div style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 20, color: C.paper }}>{fmt(totalAssets)}</div>
+            </div>
+          </div>
+
+          <div style={{ background: C.white, borderRadius: 10, padding: 18, boxShadow: `0 1px 0 ${C.rule}` }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: ".08em", color: C.textSoft, textTransform: "uppercase", marginBottom: 12 }}>
+              Loans receivable by member
+            </div>
+            {loanAssets.length === 0 ? (
+              <div style={{ color: C.textSoft, fontSize: 13 }}>No outstanding loans.</div>
+            ) : (
+              loanAssets.map((m) => (
+                <div key={m.name} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.paper2}`, fontSize: 13 }}>
+                  <span>{m.name}</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: C.steel2, fontWeight: 600 }}>{fmt(m.owed)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (accountView === "liabilities") {
+    const savingsLiabilities = state.members
+      .map((m) => ({ name: m.name, balance: savingsBalance(m.id) }))
+      .filter((m) => m.balance > 0);
+
+    const totalLiabilities = savingsLiabilities.reduce((s, m) => s + m.balance, 0);
+
+    return (
+      <div style={{ fontFamily: "'Inter', sans-serif", color: C.text, minHeight: 640 }}>
+        <div style={{ padding: "28px 30px" }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase", color: C.textSoft, marginBottom: 5 }}>
+            What the group owes
+          </div>
+          <h2 style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 26, margin: "0 0 6px" }}>
+            Liabilities
+          </h2>
+          <div style={{ fontSize: 13, color: C.textSoft, marginBottom: 20 }}>
+            Member savings held by the group — money that belongs to members, not the chama itself.
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
+            <div style={{ background: C.ink, borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: C.gold, textTransform: "uppercase" }}>Total Liabilities</div>
+              <div style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 20, color: C.paper }}>{fmt(totalLiabilities)}</div>
+            </div>
+          </div>
+
+          <div style={{ background: C.white, borderRadius: 10, padding: 18, boxShadow: `0 1px 0 ${C.rule}` }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: ".08em", color: C.textSoft, textTransform: "uppercase", marginBottom: 12 }}>
+              Savings owed to members
+            </div>
+            {savingsLiabilities.length === 0 ? (
+              <div style={{ color: C.textSoft, fontSize: 13 }}>No member savings recorded.</div>
+            ) : (
+              savingsLiabilities.map((m) => (
+                <div key={m.name} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.paper2}`, fontSize: 13 }}>
+                  <span>{m.name}</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: C.rust, fontWeight: 600 }}>{fmt(m.balance)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (accountView === "pnl") {
+    let interestIncome = 0;
+    state.members.forEach((m) => {
+      (state.transactions[m.id]?.loans || []).forEach((t) => {
+        if (t.type === "interest") interestIncome += Number(t.amount);
+      });
+    });
+
+    const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
+    const netProfit = interestIncome - totalExpenses;
+    const isProfit = netProfit >= 0;
+
+    return (
+      <div style={{ fontFamily: "'Inter', sans-serif", color: C.text, minHeight: 640 }}>
+        <div style={{ padding: "28px 30px" }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase", color: C.textSoft, marginBottom: 5 }}>
+            How the group is doing
+          </div>
+          <h2 style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 26, margin: "0 0 6px" }}>
+            Profit &amp; Loss
+          </h2>
+          <div style={{ fontSize: 13, color: C.textSoft, marginBottom: 20 }}>
+            Interest income earned versus group expenses.
+          </div>
+
+          <div style={{ background: C.white, borderRadius: 10, padding: 18, boxShadow: `0 1px 0 ${C.rule}`, marginBottom: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${C.paper2}`, fontSize: 14 }}>
+              <span>Interest Income</span>
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: C.gold2, fontWeight: 600 }}>{fmt(interestIncome)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${C.paper2}`, fontSize: 14 }}>
+              <span>Total Expenses</span>
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: C.rust, fontWeight: 600 }}>({fmt(totalExpenses)})</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "14px 0 4px", fontSize: 16 }}>
+              <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700 }}>
+                Net {isProfit ? "Profit" : "Loss"}
+              </span>
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, color: isProfit ? C.sage : C.rust }}>
+                {fmt(Math.abs(netProfit))}
+              </span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: isProfit ? "rgba(63,115,80,0.1)" : "rgba(162,58,44,0.1)",
+              border: `1px solid ${isProfit ? C.sage : C.rust}`,
+              borderRadius: 10,
+              padding: "14px 18px",
+              fontSize: 13,
+              color: C.text,
+            }}
+          >
+            {isProfit
+              ? `The group has earned KES ${Math.abs(netProfit).toLocaleString()} more in interest than it has spent on expenses.`
+              : `The group has spent KES ${Math.abs(netProfit).toLocaleString()} more on expenses than it has earned in interest.`}
           </div>
         </div>
       </div>
@@ -591,6 +902,90 @@ export default function ChamaLedger() {
                   }}
                 >
                   <FileText size={15} /> Journal
+                </button>
+                <button
+                  onClick={() => setAccountView("expenses")}
+                  style={{
+                    fontFamily: "'Roboto Slab', serif",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    background: "none",
+                    border: "none",
+                    padding: "9px 20px 10px",
+                    cursor: "pointer",
+                    color: accountView === "expenses" ? C.rust : C.textSoft,
+                    position: "relative",
+                    top: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    borderBottom: accountView === "expenses" ? `3px solid ${C.rust}` : "3px solid transparent",
+                  }}
+                >
+                  <Users size={15} /> Expenses
+                </button>
+                <button
+                  onClick={() => setAccountView("assets")}
+                  style={{
+                    fontFamily: "'Roboto Slab', serif",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    background: "none",
+                    border: "none",
+                    padding: "9px 20px 10px",
+                    cursor: "pointer",
+                    color: accountView === "assets" ? C.sage : C.textSoft,
+                    position: "relative",
+                    top: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    borderBottom: accountView === "assets" ? `3px solid ${C.sage}` : "3px solid transparent",
+                  }}
+                >
+                  <PiggyBank size={15} /> Assets
+                </button>
+                <button
+                  onClick={() => setAccountView("liabilities")}
+                  style={{
+                    fontFamily: "'Roboto Slab', serif",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    background: "none",
+                    border: "none",
+                    padding: "9px 20px 10px",
+                    cursor: "pointer",
+                    color: accountView === "liabilities" ? C.steel2 : C.textSoft,
+                    position: "relative",
+                    top: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    borderBottom: accountView === "liabilities" ? `3px solid ${C.steel2}` : "3px solid transparent",
+                  }}
+                >
+                  <Landmark size={15} /> Liabilities
+                </button>
+                <button
+                  onClick={() => setAccountView("pnl")}
+                  style={{
+                    fontFamily: "'Roboto Slab', serif",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    background: "none",
+                    border: "none",
+                    padding: "9px 20px 10px",
+                    cursor: "pointer",
+                    color: accountView === "pnl" ? C.gold2 : C.textSoft,
+                    position: "relative",
+                    top: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    borderBottom: accountView === "pnl" ? `3px solid ${C.gold2}` : "3px solid transparent",
+                  }}
+                >
+                  <FileText size={15} /> P&amp;L
                 </button>
               </div>
 
