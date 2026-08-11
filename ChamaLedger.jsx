@@ -382,6 +382,17 @@ export default function ChamaLedger() {
                     );
                   })}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={5} style={{ padding: "12px 10px", borderTop: `2px solid ${C.ink2}`, textAlign: "right", fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: 13 }}>
+                      Total
+                    </td>
+                    <td style={{ padding: "12px 10px", borderTop: `2px solid ${C.ink2}`, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, fontSize: 13.5, color: C.ink2 }}>
+                      {fmt(journalEntries.reduce((sum, t) => sum + Number(t.amount), 0))}
+                    </td>
+                    <td style={{ padding: "12px 10px", borderTop: `2px solid ${C.ink2}` }} />
+                  </tr>
+                </tfoot>
               </table>
             )}
           </div>
